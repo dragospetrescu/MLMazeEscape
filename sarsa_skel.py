@@ -80,8 +80,8 @@ def sarsa():
     const = float(options.constant)
     constants = Constants(alpha, gamma, const)
 
-    nsteps = 100000  # Lăsați milioane de pași pentru hărțile mari (16x16)
-    report_freq = 4000
+    nsteps = 50000  # Lăsați milioane de pași pentru hărțile mari (16x16)
+    report_freq = 2000
 
     steps, avg_returns, avg_lengths = [], [], []
     recent_returns, recent_lengths = [], []
@@ -93,25 +93,19 @@ def sarsa():
     actions = list(range(0, 6))
     state = State(env.agent_pos, env.agent_dir)
     action = get_best_action(q, state, actions, N, constants)
-    show = False
     for step in range(1, nsteps + 1):
         N[state] = N.get(state, 0) + 1
         new_obs, reward, done, _ = env.step(action)
-        new_action = get_best_action(q, state, actions, N, constants)
         new_state = State(env.agent_pos, env.agent_dir)
+        new_action = get_best_action(q, new_state, actions, N, constants)
         q[(state, action)] = q.get((state, action), 0) + constants.alpha * (
                     reward + constants.gamma * q.get((new_state, new_action), 0) - q.get((state, action), 0))
 
         crt_return += reward
         crt_length += 1
-        if show:
-            env.render('human')
-            time.sleep(0.1)
 
         if done:
             _obs, done = env.reset(), False
-            if step > nsteps - 1000:
-                show = True
             recent_returns.append(crt_return)  # câștigul episodului încheiat
             recent_lengths.append(crt_length)
             crt_return, crt_length = 0, 0
