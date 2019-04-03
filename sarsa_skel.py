@@ -15,6 +15,10 @@ from openpyxl import load_workbook
 import pandas as pd
 
 
+def ucb(q, state, actions, N, constants):
+    return random.choice(actions)
+
+
 def eps(state, N, constants):
     if N.get(state, 0) == 0:
         return 1.0
@@ -69,16 +73,16 @@ def boltzman(q, state, actions, N, constants):
     return p.values()
 
 
-def get_best_action(q, state, actions, N, constants):
-    p = boltzman(q, state, actions, N, constants)
+def get_best_action(q, state, actions, N, constants, expl_func):
+    p = expl_func(q, state, actions, N, constants)
     return random.choices(actions, weights=p)[0]
 
 
-def sarsa(env, constants):
+def sarsa(env, constants, expl_func):
     """ Exemplu de evaluare a unei politici pe parcursul antrenării (online).
     """
 
-    report_freq = 2000
+    report_freq = constants.no_steps / 100
 
     steps, avg_returns, avg_lengths = [], [], []
     recent_returns, recent_lengths = [], []
@@ -87,14 +91,14 @@ def sarsa(env, constants):
     _obs, done = env.reset(), False
     q = {}
     N = {}
-    actions = list(range(0, 7))
-    state = State(env.agent_pos, env.agent_dir)
-    action = get_best_action(q, state, actions, N, constants)
+    actions = list(range(0, 6))
+    state = State(env.agent_pos, env.agent_dir, _obs['image'])
+    action = get_best_action(q, state, actions, N, constants, expl_func)
     for step in range(1, constants.no_steps + 1):
         N[state] = N.get(state, 0) + 1
         new_obs, reward, done, _ = env.step(action)
-        new_state = State(env.agent_pos, env.agent_dir)
-        new_action = get_best_action(q, new_state, actions, N, constants)
+        new_state = State(env.agent_pos, env.agent_dir, new_obs['image'])
+        new_action = get_best_action(q, new_state, actions, N, constants, expl_func)
         q[(state, action)] = q.get((state, action), 0) + constants.alpha * (
                     reward + constants.gamma * q.get((new_state, new_action), 0) - q.get((state, action), 0))
 
@@ -120,12 +124,7 @@ def sarsa(env, constants):
             steps.append(step)  # pasul la care am reținut valorile
             avg_returns.append(avg_return)
             avg_lengths.append(avg_length)
-            #
-            # print(  # pylint: disable=bad-continuation
-            #     f"Step {step:4d}"
-            #     f" | Avg. return = {avg_return:.2f}"
-            #     f" | Avg. ep. length: {avg_length:.2f}"
-            # )
+
             recent_returns.clear()
             recent_lengths.clear()
 
@@ -135,91 +134,86 @@ def sarsa(env, constants):
     # a nu trage concluzii fără a lua în calcul varianța algoritmilor
 
 
-def init_envs():
-    envs = {}
-    envs['MiniGrid-Empty-6x6-v0'] = 24000
-    envs['MiniGrid-Empty-8x8-v0'] = 40000
-    envs['MiniGrid-Empty-16x16-v0'] = 1000000
-    envs['MiniGrid-DoorKey-6x6-v0'] = 500000
-    envs['MiniGrid-DoorKey-8x8-v0'] = 1000000
-    envs['MiniGrid-DoorKey-16x16-v0'] = 10000000
-    return envs
+def get_no_steps(map_name):
+    if map_name == 'MiniGrid-Empty-6x6-v0':
+        return 30000
+    if map_name == 'MiniGrid-Empty-8x8-v0':
+        return 60000
+    if map_name == 'MiniGrid-Empty-16x16-v0':
+        return 1000000
+    if map_name == 'MiniGrid-DoorKey-6x6-v0':
+        return 5000000
+    if map_name == 'MiniGrid-DoorKey-8x8-v0':
+        return 50000000
+    if map_name == 'MiniGrid-DoorKey-16x16-v0':
+        return 100000000
+
+
+def get_exploration_func(func_name):
+    if func_name == 'boltzman':
+        return boltzman
+    if func_name == 'epsilon':
+        return epsilon_greedy
+    if func_name == 'ucb':
+        return ucb
 
 
 if __name__ == "__main__":
 
-    # parser = OptionParser()
-    # parser.add_option(
-    #     "-e",
-    #     "--env-name",
-    #     dest="env_name",
-    #     help="gym environment to load",
-    #     default='MiniGrid-Empty-8x8-v0'
-    # )
-    # parser.add_option(
-    #     "-a",
-    #     "--alpha",
-    #     dest="alpha",
-    # )
-    # parser.add_option(
-    #     "-g",
-    #     "--gamma",
-    #     dest="gamma",
-    # )
-    # parser.add_option(
-    #     "-c",
-    #     "--constant",
-    #     dest="constant",
-    # )
-    #
-    # (options, args) = parser.parse_args()
+    parser = OptionParser()
+    parser.add_option(
+        "-e",
+        "--env-name",
+        dest="env_name",
+        help="gym environment to load",
+        default='MiniGrid-Empty-8x8-v0'
+    )
+    parser.add_option(
+        "-a",
+        "--alpha",
+        dest="alpha",
+    )
+    parser.add_option(
+        "-g",
+        "--gamma",
+        dest="gamma",
+    )
+    parser.add_option(
+        "-c",
+        "--constant",
+        dest="constant",
+    )
+    parser.add_option(
+        "-f",
+        "--exploration_func",
+        dest="exploration",
+    )
+
+    (options, args) = parser.parse_args()
     # Load the gym environment
 
-    # alpha = float(options.alpha)
-    # gamma = float(options.gamma)
-    # const = float(options.constant)
+    alpha = float(options.alpha)
+    gamma = float(options.gamma)
+    const = float(options.constant)
+    exploration_func = get_exploration_func(options.exploration)
+    env = gym.make(options.env_name)
+    no_steps = get_no_steps(options.env_name)
+    constants = Constants(alpha, gamma, const, no_steps)
 
-    envs = init_envs()
-    for filename in envs.keys():
-        env = gym.make(filename)
-        no_steps = envs[filename]
-        writer_length = pd.ExcelWriter(filename + '_lenghts.xlsx', engine='openpyxl')
-        wb_legnth = writer_length.book
-        writer_return = pd.ExcelWriter(filename + '_returns.xlsx', engine='openpyxl')
-        wb_return = writer_length.book
-        length_map = {}
-        return_map = {}
-        for alpha in np.arange(0.0, 1.0, 0.2):
-            print (alpha)
-            for gamma in np.arange(0.0, 1.0, 0.2):
-                for const in range(0, 1, 20):
-                    constants = Constants(alpha, gamma, const, no_steps)
+    avg_lengths = {}
+    avg_returns = {}
+    AVG_SAMPLE = 5
+    steps = []
+    for i in range(0, AVG_SAMPLE):
+        steps, lengths, returns = sarsa(env, constants, exploration_func)
+        for j in range(0, len(steps)):
+            step = steps[j]
+            avg_lengths[step] = avg_lengths.get(step, 0) + lengths[j] / AVG_SAMPLE
+            avg_returns[step] = avg_returns.get(step, 0) + returns[j] / AVG_SAMPLE
 
-                    avg_lengths = {}
-                    avg_returns = {}
-                    AVG_SAMPLE = 5
-                    for i in range(0, AVG_SAMPLE):
-                        steps, lengths, returns = sarsa(env, constants)
-                        for j in range(0, len(steps)):
-                            step = steps[j]
-                            avg_lengths[step] = avg_lengths.get(step, 0) + lengths[j] / AVG_SAMPLE
-                            avg_returns[step] = avg_returns.get(step, 0) + returns[j] / AVG_SAMPLE
-                    length_map[str(constants)] = avg_lengths
-                    return_map[str(constants)] = avg_returns
-
-        df = pd.DataFrame(length_map)
-        df.to_excel(writer_length, index=False)
-        wb_legnth.save(filename + '_lenghts.xlsx')
-
-        df = pd.DataFrame(return_map)
-        df.to_excel(writer_length, index=False)
-        wb_legnth.save(filename + '_returns.xlsx')
-
-    # _fig, (ax1, ax2) = plt.subplots(ncols=2)
-    # ax1.plot(steps, avg_lengths.values(), label="random")
-    # ax1.set_title("Average episode length")
-    # ax1.legend()
-    # ax2.plot(steps, avg_returns.values(), label="random")
-    # ax2.set_title("Average episode return")
-    # ax2.legend()
-    # plt.show()
+    f = open("results/hyperconstants/" + options.exploration + "/" + str(constants), "w+")
+    f.write(str(constants) + "\r\n")
+    for j in range(0, len(steps)):
+        step = steps[j]
+        f.write("%d %.2f %.2f\r\n" % (step, avg_lengths[step], avg_returns[step]))
+    f.close()

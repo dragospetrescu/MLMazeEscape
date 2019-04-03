@@ -3,7 +3,7 @@ class Constants:
         self.alpha = alpha
         self.gamma = gamma
         self.const = const
-        self.no_steps =  no_steps
+        self.no_steps = no_steps
 
     def __str__(self):
-        return 'alpha=' +str(self.alpha) + ' gamma=' + str(self.gamma) + ' c=' + str(self.const)
+        return 'alpha=' + str(self.alpha) + 'gamma=' + str(self.gamma) + 'c=' + str(self.const)
