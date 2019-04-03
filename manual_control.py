@@ -31,14 +31,16 @@ class State:
         return str(self.pos) + " " + str(self.direction)
 
 
+class Constants:
+    def __init__(self, alpha, gamma, const):
+        self.alpha = alpha
+        self.gamma = gamma
+        self.const = const
+
 def init_states(env):
     states = []
     for i in range(0, env.grid.width):
         for j in range(0, env.grid.height):
-            cell = env.grid.grid[j * env.grid.width + i]
-            # if i == 17 and j == 18:
-            #     print(cell)
-            # if not isinstance(cell, gym_minigrid.minigrid.Wall):
             for direction in range(0, 4):
                 state = State((i, j), direction)
                 states.append(state)
@@ -55,7 +57,6 @@ def resetEnv(env):
     if not hasattr(env, 'mission'):
         print('!!!!!!!!!!!!!COULD NOT CREATE NEW MISSION!!!!!!!!!')
 
-
 def main():
     parser = OptionParser()
     parser.add_option(
@@ -65,10 +66,30 @@ def main():
         help="gym environment to load",
         default='MiniGrid-Empty-6x6-v0'
     )
+    parser.add_option(
+        "-a",
+        "--alpha",
+        dest="alpha",
+    )
+    parser.add_option(
+        "-g",
+        "--gamma",
+        dest="gamma",
+    )
+    parser.add_option(
+        "-c",
+        "--constant",
+        dest="constant",
+    )
+
     (options, args) = parser.parse_args()
 
     # Load the gym environment
     env = gym.make(options.env_name)
+    alpha = float(options.alpha)
+    gamma = float(options.gamma)
+    const = float(options.constant)
+    constants = Constants(alpha, gamma, const)
 
     resetEnv(env)
     states = init_states(env)
@@ -79,9 +100,7 @@ def main():
 
 
     # renderer.window.setKeyDownCb(keyDownCb)
-    gamma = 0.4
-    alpha = 0.8
-    sarsa(env, states, actions, gamma, alpha)
+    sarsa(env, states, actions, constants)
 
     # while True:
     #     env.render('human')
@@ -93,13 +112,12 @@ def main():
 
 
 Q0 = 0
-NO_EPISODES = 10000
-C = 50
+NO_EPISODES = 100
 
-def eps(state, N):
+def eps(state, N, constants):
     if N[state] == 0:
         return 0
-    return 1.0 * C / N[state]
+    return 1.0 * constants.const / N[state]
 
 def get_action_name(action_num):
     if action_num == 0:
@@ -111,7 +129,7 @@ def get_action_name(action_num):
     else:
         return str(action_num)
 
-def epsilon_greedy(q, state, actions, N):
+def epsilon_greedy(q, state, actions, N, constants):
     max_actions = []
     max_q = float('-inf')
     for action in actions:
@@ -124,9 +142,9 @@ def epsilon_greedy(q, state, actions, N):
     p = []
     for action in actions:
         if action in max_actions:
-            p.append(eps(state, N) / len(actions) + (1 - eps(state, N)) / len(max_actions))
+            p.append(eps(state, N, constants) / len(actions) + (1 - eps(state, N, constants)) / len(max_actions), )
         else:
-            p.append(eps(state, N) / len(actions))
+            p.append(eps(state, N, constants) / len(actions))
     return p
 
 
@@ -155,7 +173,7 @@ def boltzman(q, state, actions, N):
 
     return p.values()
 
-def get_action(state, q, actions, N, debug=False):
+def get_action(state, q, actions, N, constants, debug=False):
     # TODO
     # unexplored = []
     # for legal_action in actions:
@@ -165,11 +183,17 @@ def get_action(state, q, actions, N, debug=False):
     # if len(unexplored) != 0:
     #     return random.choice(unexplored)
 
-    p = epsilon_greedy(q, state, actions, N)
+    p = epsilon_greedy(q, state, actions, N, constants)
     return random.choices(actions, weights=p)[0]
 
+OUT_FILE="results.txt"
+def write_results(constants, avg_length, avg_return):
+    f = open(OUT_FILE, "a+")
+    f.write(str(constants.const) + ' ' + str(constants.alpha) + ' ' + str(constants.gamma) + ' ' +  str(avg_length) + ' ' +  str(avg_return) + '\n')
+    f.close()
 
-def sarsa(env, states, actions, gamma, alpha):
+
+def sarsa(env, states, actions, constants):
     q = {}
     N = {}
     for state in states:
@@ -177,17 +201,34 @@ def sarsa(env, states, actions, gamma, alpha):
         # for action in actions:
         #     q[(state, action)] = Q0
 
-    steps, avg_returns, avg_lengths = [], [], []
-
     for episode in range(0, NO_EPISODES):
         # Set initial state
         resetEnv(env)
-        recent_returns, recent_lengths = [], []
+        state = State(env.agent_pos, env.agent_dir)
+        # alege act,iunea a conform π (s, q)
+        action = get_action(state, q, actions, N, constants)
+
+        done = False
+        while not done:
+            N[state] = N[state] + 1
+            obs, reward, done, info = env.step(action)
+            new_state = State(env.agent_pos, env.agent_dir)
+            new_action = get_action(state, q, actions, N, constants)
+            q[(state, action)] = q.get((state, action), 0) + constants.alpha * (reward + constants.gamma * q.get((new_state, new_action), 0) - q.get((state, action), 0))
+
+            state = new_state
+            action = new_action
+            # env.render('human')
+            # time.sleep(0.01)
+
+    recent_returns, recent_lengths = [], []
+    for i in range(1, 100):
+        resetEnv(env)
         crt_return = 0
         crt_length = 0
         state = State(env.agent_pos, env.agent_dir)
         # alege act,iunea a conform π (s, q)
-        action = get_action(state, q, actions, N)
+        action = get_action(state, q, actions, N, constants)
 
         done = False
         while not done:
@@ -196,8 +237,8 @@ def sarsa(env, states, actions, gamma, alpha):
             crt_return += reward
             crt_length += 1
             new_state = State(env.agent_pos, env.agent_dir)
-            new_action = get_action(state, q, actions, N)
-            q[(state, action)] = q.get((state, action), 0) + alpha * (reward + gamma * q.get((new_state, new_action), 0) - q.get((state, action), 0))
+            new_action = get_action(state, q, actions, N, constants)
+            q[(state, action)] = q.get((state, action), 0) + constants.alpha * (reward + constants.gamma * q.get((new_state, new_action), 0) - q.get((state, action), 0))
 
             state = new_state
             action = new_action
@@ -206,54 +247,9 @@ def sarsa(env, states, actions, gamma, alpha):
         recent_returns.append(crt_return)  # câștigul episodului încheiat
         recent_lengths.append(crt_length)
 
-        if episode% 100 == 0:
-            avg_return = np.mean(recent_returns)  # media câștigurilor recente
-            avg_length = np.mean(recent_lengths)  # media lungimilor episoadelor
-
-            steps.append(episode)
-            avg_returns.append(avg_return)
-            avg_lengths.append(avg_length)
-
-            print(  # pylint: disable=bad-continuation
-                f"Step {episode:4d}"
-                f" | Avg. return = {avg_return:.2f}"
-                f" | Avg. ep. length: {avg_length:.2f}"
-            )
-            recent_returns.clear()
-            recent_lengths.clear()
-
-    _fig, (ax1, ax2) = plt.subplots(ncols=2)
-    ax1.plot(steps, avg_lengths, label="random")
-    ax1.set_title("Average episode length")
-    ax1.legend()
-    ax2.plot(steps, avg_returns, label="random")
-    ax2.set_title("Average episode return")
-    ax2.legend()
-    plt.show()
-
-    while play_again():
-        resetEnv(env)
-        state = State(env.agent_pos, env.agent_dir)
-        action = get_action(state, q, actions, N, True)
-        done = False
-        while not done:
-            N[state] = N[state] + 1
-            obs, reward, done, info = env.step(action)
-            new_state = State(env.agent_pos, env.agent_dir)
-            new_action = get_action(state, q, actions, N)
-            q[(state, action)] = q.get((state, action), 0) + alpha * (reward + gamma * q.get((new_state, new_action), 0) - q.get((state, action), 0))
-
-            state = new_state
-            action = new_action
-            env.render('human')
-            time.sleep(0.01)
-            # play_again()
-
-def play_again():
-    c = sys.stdin.read(1)
-    if c != 'n':
-        return True
-    return False
+    avg_return = np.mean(recent_returns)  # media câștigurilor recente
+    avg_length = np.mean(recent_lengths)  # media lungimilor episoadelor
+    write_results(constants, avg_return, avg_length)
 
 
 if __name__ == "__main__":
