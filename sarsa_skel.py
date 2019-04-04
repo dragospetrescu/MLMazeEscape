@@ -146,11 +146,11 @@ def get_no_steps(map_name):
     if map_name == 'MiniGrid-Empty-16x16-v0':
         return 800000
     if map_name == 'MiniGrid-DoorKey-6x6-v0':
-        return 1000000
+        return 10000000
     if map_name == 'MiniGrid-DoorKey-8x8-v0':
-        return 30000000
-    if map_name == 'MiniGrid-DoorKey-16x16-v0':
         return 50000000
+    if map_name == 'MiniGrid-DoorKey-16x16-v0':
+        return 100000000
 
 
 def get_exploration_func(func_name):
@@ -177,7 +177,7 @@ def start_sarsa(options):
 
     avg_lengths = {}
     avg_returns = {}
-    AVG_SAMPLE = 1
+    AVG_SAMPLE = 3
     steps = []
     for i in range(0, AVG_SAMPLE):
         try:
