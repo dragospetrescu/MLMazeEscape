@@ -37,9 +37,9 @@ def epsilon_greedy(q, state, actions, N, constants):
     eps_value = eps(state, N, constants)
     for action in actions:
         if action in max_actions:
-            p.append(max(eps_value / len(actions) + (1 - eps_value) / len(max_actions), 0))
+            p.append(eps_value / len(actions) + (1 - eps_value) / len(max_actions))
         else:
-            p.append(max(eps_value / len(actions), 0))
+            p.append(eps_value / len(actions))
     return p
 
 
@@ -66,7 +66,7 @@ def boltzman(q, state, actions, N, constants):
         total += p[action]
 
     for action in actions:
-        p[action] = max(p[action] / total, 0)
+        p[action] = p[action] / total
 
     return p.values()
 
@@ -144,13 +144,13 @@ def get_no_steps(map_name):
     if map_name == 'MiniGrid-Empty-8x8-v0':
         return 60000
     if map_name == 'MiniGrid-Empty-16x16-v0':
-        return 1000000
+        return 800000
     if map_name == 'MiniGrid-DoorKey-6x6-v0':
-        return 5000000
+        return 1000000
     if map_name == 'MiniGrid-DoorKey-8x8-v0':
-        return 50000000
+        return 30000000
     if map_name == 'MiniGrid-DoorKey-16x16-v0':
-        return 100000000
+        return 50000000
 
 
 def get_exploration_func(func_name):
@@ -177,7 +177,7 @@ def start_sarsa(options):
 
     avg_lengths = {}
     avg_returns = {}
-    AVG_SAMPLE = 5
+    AVG_SAMPLE = 1
     steps = []
     for i in range(0, AVG_SAMPLE):
         try:
