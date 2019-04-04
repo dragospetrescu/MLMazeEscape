@@ -4,15 +4,10 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import gym
-from optparse import OptionParser
-import gym_minigrid  # pylint: disable=unused-import
 from constants import Constants
 from state import State
 import random
-import time
 import math
-from openpyxl import load_workbook
-import pandas as pd
 
 
 def ucb(q, state, actions, N, constants):
@@ -158,46 +153,17 @@ def get_exploration_func(func_name):
         return ucb
 
 
-if __name__ == "__main__":
+def start_sarsa(options):
 
-    parser = OptionParser()
-    parser.add_option(
-        "-e",
-        "--env-name",
-        dest="env_name",
-        help="gym environment to load",
-        default='MiniGrid-Empty-8x8-v0'
-    )
-    parser.add_option(
-        "-a",
-        "--alpha",
-        dest="alpha",
-    )
-    parser.add_option(
-        "-g",
-        "--gamma",
-        dest="gamma",
-    )
-    parser.add_option(
-        "-c",
-        "--constant",
-        dest="constant",
-    )
-    parser.add_option(
-        "-f",
-        "--exploration_func",
-        dest="exploration",
-    )
-
-    (options, args) = parser.parse_args()
     # Load the gym environment
 
-    alpha = float(options.alpha)
-    gamma = float(options.gamma)
-    const = float(options.constant)
-    exploration_func = get_exploration_func(options.exploration)
-    env = gym.make(options.env_name)
-    no_steps = get_no_steps(options.env_name)
+    alpha = float(options['alpha'])
+    gamma = float(options['gamma'])
+    const = float(options['constant'])
+    exploration_func = get_exploration_func(options['exploration'])
+    map_name = options['env_name']
+    env = gym.make(map_name)
+    no_steps = get_no_steps(map_name)
     constants = Constants(alpha, gamma, const, no_steps)
 
     avg_lengths = {}
@@ -205,13 +171,17 @@ if __name__ == "__main__":
     AVG_SAMPLE = 5
     steps = []
     for i in range(0, AVG_SAMPLE):
-        steps, lengths, returns = sarsa(env, constants, exploration_func)
-        for j in range(0, len(steps)):
-            step = steps[j]
-            avg_lengths[step] = avg_lengths.get(step, 0) + lengths[j] / AVG_SAMPLE
-            avg_returns[step] = avg_returns.get(step, 0) + returns[j] / AVG_SAMPLE
+        try:
+            steps, lengths, returns = sarsa(env, constants, exploration_func)
+            for j in range(0, len(steps)):
+                step = steps[j]
+                avg_lengths[step] = avg_lengths.get(step, 0) + lengths[j] / AVG_SAMPLE
+                avg_returns[step] = avg_returns.get(step, 0) + returns[j] / AVG_SAMPLE
+        except Exception as e:
+            print('FAILED -> ' + str(options['exploration']) + " - " + str(map_name) + " - " + str(constants))
+            print(e)
 
-    f = open("results/hyperconstants/" + options.exploration + "/" + str(constants), "w+")
+    f = open("results/hyperconstants/" + str(options['exploration']) + "/" + str(map_name) + "/" + str(constants), "w+")
     f.write(str(constants) + "\r\n")
     for j in range(0, len(steps)):
         step = steps[j]
