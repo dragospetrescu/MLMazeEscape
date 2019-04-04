@@ -1,9 +1,11 @@
+#!/usr/bin/env python3.5
 """ Exemplu de cod pentru tema 1.
 """
 
 import matplotlib.pyplot as plt
 import numpy as np
 import gym
+import gym_minigrid
 from constants import Constants
 from state import State
 import random
@@ -35,9 +37,9 @@ def epsilon_greedy(q, state, actions, N, constants):
     eps_value = eps(state, N, constants)
     for action in actions:
         if action in max_actions:
-            p.append(eps_value / len(actions) + (1 - eps_value) / len(max_actions), )
+            p.append(max(eps_value / len(actions) + (1 - eps_value) / len(max_actions), 0))
         else:
-            p.append(eps_value / len(actions))
+            p.append(max(eps_value / len(actions), 0))
     return p
 
 
@@ -64,14 +66,20 @@ def boltzman(q, state, actions, N, constants):
         total += p[action]
 
     for action in actions:
-        p[action] = p[action] / total
+        p[action] = max(p[action] / total, 0)
 
     return p.values()
 
 
 def get_best_action(q, state, actions, N, constants, expl_func):
     p = expl_func(q, state, actions, N, constants)
-    return random.choices(actions, weights=p)[0]
+    total = sum(p)
+    if total == 0:
+        p = [1.0 / len(actions)] * len(actions)
+    else:
+        p = list(map(lambda x: x / total, p))
+    draw = np.random.choice(actions, 1, p=p)
+    return draw[0]
 
 
 def sarsa(env, constants, expl_func):
@@ -163,8 +171,8 @@ def start_sarsa(options):
     const = float(options['constant'])
     exploration_func = get_exploration_func(options['exploration'])
     map_name = options['env_name']
-    env = gym.make(map_name)
-    no_steps = get_no_steps(map_name)
+    no_steps = get_no_steps(options['env_name'])
+    env = gym.make(options['env_name'])
     constants = Constants(alpha, gamma, const, no_steps)
 
     avg_lengths = {}
