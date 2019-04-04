@@ -32,11 +32,12 @@ def epsilon_greedy(q, state, actions, N, constants):
         elif candidate == max_q:
             max_actions.append(action)
     p = []
+    eps_value = eps(state, N, constants)
     for action in actions:
         if action in max_actions:
-            p.append(eps(state, N, constants) / len(actions) + (1 - eps(state, N, constants)) / len(max_actions), )
+            p.append(eps_value / len(actions) + (1 - eps_value) / len(max_actions), )
         else:
-            p.append(eps(state, N, constants) / len(actions))
+            p.append(eps_value / len(actions))
     return p
 
 
