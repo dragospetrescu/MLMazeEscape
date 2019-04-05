@@ -45,7 +45,7 @@ def epsilon_greedy(q, state, actions, N, constants):
 
 def beta(q, state, N, actions):
     if N.get(state, 0) <= 1:
-        return 1
+        return 0.0
     max_dif = float('-inf')
     for action1 in actions:
         for action2 in actions:
@@ -53,7 +53,7 @@ def beta(q, state, N, actions):
             if diff >= max_dif:
                 max_dif = diff
     if max_dif == 0:
-        return 1
+        return 1.0
     return math.log(N[state]) / max_dif
 
 
