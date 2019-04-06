@@ -4,10 +4,13 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import gym
+import time
+
 from constants import Constants
 from state import State
 import random
 import math
+import gym_minigrid
 
 
 def ucb(q, state, actions, N, constants):
@@ -34,15 +37,15 @@ def epsilon_greedy(q, state, actions, N, constants):
     p = []
     for action in actions:
         if action in max_actions:
-            p.append(eps(state, N, constants) / len(actions) + (1 - eps(state, N, constants)) / len(max_actions), )
+            p.append(eps(state, N, constants) / len(actions) + (1 - eps(state, N, constants)) / len(max_actions))
         else:
             p.append(eps(state, N, constants) / len(actions))
     return p
 
 
 def beta(q, state, N, actions):
-    if N.get(state, 0) <= 1:
-        return 1
+    if N.get(state, 0) == 0:
+        return 0
     max_dif = float('-inf')
     for action1 in actions:
         for action2 in actions:
@@ -65,12 +68,12 @@ def boltzman(q, state, actions, N, constants):
     for action in actions:
         p[action] = p[action] / total
 
-    return p.values()
+    return list(p.values())
 
 
 def get_best_action(q, state, actions, N, constants, expl_func):
     p = expl_func(q, state, actions, N, constants)
-    return random.choices(actions, weights=p)[0]
+    return np.random.choice(actions, p=p)
 
 
 def sarsa(env, constants, expl_func):
@@ -90,17 +93,22 @@ def sarsa(env, constants, expl_func):
     state = State(env.agent_pos, env.agent_dir, _obs['image'])
     action = get_best_action(q, state, actions, N, constants, expl_func)
     for step in range(1, constants.no_steps + 1):
+
         N[state] = N.get(state, 0) + 1
         new_obs, reward, done, _ = env.step(action)
         new_state = State(env.agent_pos, env.agent_dir, new_obs['image'])
+        if N.get(new_state, None) is None:
+            N[new_state] = 0
+
         new_action = get_best_action(q, new_state, actions, N, constants, expl_func)
         q[(state, action)] = q.get((state, action), 0) + constants.alpha * (
                     reward + constants.gamma * q.get((new_state, new_action), 0) - q.get((state, action), 0))
 
         crt_return += reward
         crt_length += 1
-        # env.render('human')
-        # time.sleep(0.01)
+        if step > constants.no_steps * 10 /9:
+            env.render('human')
+            time.sleep(0.01)
 
         if done:
             _obs, done = env.reset(), False
@@ -119,6 +127,7 @@ def sarsa(env, constants, expl_func):
             steps.append(step)  # pasul la care am reținut valorile
             avg_returns.append(avg_return)
             avg_lengths.append(avg_length)
+            print(str(avg_length))
 
             recent_returns.clear()
             recent_lengths.clear()
@@ -168,18 +177,18 @@ def start_sarsa(options):
 
     avg_lengths = {}
     avg_returns = {}
-    AVG_SAMPLE = 5
+    AVG_SAMPLE = 1
     steps = []
     for i in range(0, AVG_SAMPLE):
-        try:
-            steps, lengths, returns = sarsa(env, constants, exploration_func)
-            for j in range(0, len(steps)):
-                step = steps[j]
-                avg_lengths[step] = avg_lengths.get(step, 0) + lengths[j] / AVG_SAMPLE
-                avg_returns[step] = avg_returns.get(step, 0) + returns[j] / AVG_SAMPLE
-        except Exception as e:
-            print('FAILED -> ' + str(options['exploration']) + " - " + str(map_name) + " - " + str(constants))
-            print(e)
+        # try:
+        steps, lengths, returns = sarsa(env, constants, exploration_func)
+        for j in range(0, len(steps)):
+            step = steps[j]
+            avg_lengths[step] = avg_lengths.get(step, 0) + lengths[j] / AVG_SAMPLE
+            avg_returns[step] = avg_returns.get(step, 0) + returns[j] / AVG_SAMPLE
+        # except Exception as e:
+        #     print('FAILED -> ' + str(options['exploration']) + " - " + str(map_name) + " - " + str(constants))
+        #     print(e)
 
     f = open("results/hyperconstants/" + str(options['exploration']) + "/" + str(map_name) + "/" + str(constants), "w+")
     f.write(str(constants) + "\r\n")
