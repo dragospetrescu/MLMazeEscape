@@ -74,7 +74,7 @@ def boltzman(q, state, actions, N, constants):
     total = 0.0
     beta_calculated = beta(q, state, N, actions, constants)
     for action in actions:
-        p[action] = math.exp(beta_calculated * q.get((state, action), constants.q0))
+        p[action] = np.exp(beta_calculated * q.get((state, action), constants.q0))
         total += p[action]
 
     for action in actions:
