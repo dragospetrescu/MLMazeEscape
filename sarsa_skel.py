@@ -14,7 +14,19 @@ import gym_minigrid
 
 
 def ucb(q, state, actions, N, constants):
-    return random.choice(actions)
+    max_action = None
+    max_value = float('-inf')
+    logN_state = math.log(N.get(state, 1))
+
+    for action in actions:
+        candidate = q.get((state, action), constants.q0) + constants.const * \
+            math.sqrt(logN_state / N.get((state, action), 1))
+
+        if candidate > max_value:
+            max_action = action
+            max_value = candidate
+
+    return max_action
 
 
 def eps(state, N, constants):
@@ -27,7 +39,7 @@ def epsilon_greedy(q, state, actions, N, constants):
     max_actions = []
     max_q = float('-inf')
     for action in actions:
-        candidate = q.get((state, action), 0)
+        candidate = q.get((state, action), constants.q0)
         if candidate > max_q:
             max_q = candidate
             max_actions.clear()
@@ -43,13 +55,13 @@ def epsilon_greedy(q, state, actions, N, constants):
     return p
 
 
-def beta(q, state, N, actions):
+def beta(q, state, N, actions, constants):
     if N.get(state, 0) == 0:
         return 0
     max_dif = float('-inf')
     for action1 in actions:
         for action2 in actions:
-            diff = abs(q.get((state, action1), 0) - q.get((state, action2), 0))
+            diff = abs(q.get((state, action1), constants.q0) - q.get((state, action2), constants.q0))
             if diff >= max_dif:
                 max_dif = diff
     if max_dif == 0:
@@ -60,9 +72,9 @@ def beta(q, state, N, actions):
 def boltzman(q, state, actions, N, constants):
     p = {}
     total = 0.0
-    beta_calculated = beta(q, state, N, actions)
+    beta_calculated = beta(q, state, N, actions, constants)
     for action in actions:
-        p[action] = math.exp(beta_calculated * q.get((state, action), 0))
+        p[action] = math.exp(beta_calculated * q.get((state, action), constants.q0))
         total += p[action]
 
     for action in actions:
@@ -72,6 +84,8 @@ def boltzman(q, state, actions, N, constants):
 
 
 def get_best_action(q, state, actions, N, constants, expl_func):
+    if expl_func == ucb:
+        return expl_func(q, state, actions, N, constants)
     p = expl_func(q, state, actions, N, constants)
     return np.random.choice(actions, p=p)
 
@@ -95,14 +109,12 @@ def sarsa(env, constants, expl_func):
     for step in range(1, constants.no_steps + 1):
 
         N[state] = N.get(state, 0) + 1
+        N[(state, action)] = N.get((state, action), 0) + 1
         new_obs, reward, done, _ = env.step(action)
         new_state = State(env.agent_pos, env.agent_dir, new_obs['image'])
-        if N.get(new_state, None) is None:
-            N[new_state] = 0
 
         new_action = get_best_action(q, new_state, actions, N, constants, expl_func)
-        q[(state, action)] = q.get((state, action), 0) + constants.alpha * (
-                    reward + constants.gamma * q.get((new_state, new_action), 0) - q.get((state, action), 0))
+        q[(state, action)] = q.get((state, action), constants.q0) + constants.alpha * (reward + constants.gamma * q.get((new_state, new_action), constants.q0) - q.get((state, action), constants.q0))
 
         crt_return += reward
         crt_length += 1
@@ -127,7 +139,6 @@ def sarsa(env, constants, expl_func):
             steps.append(step)  # pasul la care am reținut valorile
             avg_returns.append(avg_return)
             avg_lengths.append(avg_length)
-            print(str(avg_length))
 
             recent_returns.clear()
             recent_lengths.clear()
@@ -140,7 +151,7 @@ def sarsa(env, constants, expl_func):
 
 def get_no_steps(map_name):
     if map_name == 'MiniGrid-Empty-6x6-v0':
-        return 30000
+        return 10000
     if map_name == 'MiniGrid-Empty-8x8-v0':
         return 60000
     if map_name == 'MiniGrid-Empty-16x16-v0':
@@ -173,7 +184,8 @@ def start_sarsa(options):
     map_name = options['env_name']
     env = gym.make(map_name)
     no_steps = get_no_steps(map_name)
-    constants = Constants(alpha, gamma, const, no_steps)
+    q0 = float(options['q0'])
+    constants = Constants(alpha, gamma, const, no_steps, q0)
 
     avg_lengths = {}
     avg_returns = {}
@@ -190,7 +202,7 @@ def start_sarsa(options):
         #     print('FAILED -> ' + str(options['exploration']) + " - " + str(map_name) + " - " + str(constants))
         #     print(e)
 
-    f = open("results/hyperconstants/" + str(options['exploration']) + "/" + str(map_name) + "/" + str(constants), "w+")
+    f = open("results/test/" + str(options['exploration']) + "/" + str(map_name) + "/" + str(constants), "w+")
     f.write(str(constants) + "\r\n")
     for j in range(0, len(steps)):
         step = steps[j]
